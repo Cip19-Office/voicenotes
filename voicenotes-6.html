@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="theme-color" content="#0f0f0f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="VoiceNotes"/>
+<title>VoiceNotes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; overflow: hidden; }
+  body { background: #0f0f0f; color: #e0e0e0; font-family: 'DM Mono','Courier New',monospace; -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: #1a1a1a; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  @keyframes wave0 { from{height:8px} to{height:32px} }
+  @keyframes wave1 { from{height:12px} to{height:22px} }
+  @keyframes wave2 { from{height:6px} to{height:38px} }
+  @keyframes wave3 { from{height:14px} to{height:18px} }
+  @keyframes wave4 { from{height:10px} to{height:28px} }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  @keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+  .fade-up { animation: fadeUp .25s ease forwards; }
+  .spinning { animation: spin 1s linear infinite; display:inline-block; }
+  .tab-bar { display:none; position:fixed; bottom:0; left:0; right:0; height:56px; background:#111; border-top:1px solid #1e1e1e; z-index:100; }
+  .tab-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:none; border:none; color:#555; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; cursor:pointer; transition:color .2s; padding:0; }
+  .tab-btn.active { color:#e8433a; }
+  .tab-icon { font-size:18px; line-height:1; }
+  @media (max-width:700px) {
+    .tab-bar { display:flex; }
+    .desktop-cols { display:none !important; }
+    .mobile-view { display:flex !important; }
+    body, html, #root { overflow:auto; }
+  }
+  .mobile-view { display:none; flex-direction:column; min-height:calc(100vh - 56px); }
+  input, textarea { -webkit-appearance:none; appearance:none; }
+  input:focus, textarea:focus { outline:none; }
+  button { -webkit-tap-highlight-color:transparent; }
+  textarea { resize:none; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.78); z-index:200; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .modal { background:#161616; border:1px solid #252525; border-radius:14px; padding:24px; width:100%; max-width:420px; animation:modalIn .2s ease; max-height:90vh; overflow-y:auto; }
+  .modal h3 { font-family:'Syne',sans-serif; font-size:16px; font-weight:800; color:#fff; margin-bottom:8px; }
+  .modal p { font-size:12px; color:#666; line-height:1.7; margin-bottom:16px; }
+  .modal a { color:#e8433a; text-decoration:none; }
+  .modal input { width:100%; background:#111; border:1px solid #252525; border-radius:8px; padding:10px 12px; color:#e0e0e0; font-size:12px; font-family:inherit; margin-bottom:12px; }
+  .toast { position:fixed; bottom:72px; left:50%; transform:translateX(-50%); background:#1e1e1e; border:1px solid #2e2e2e; border-radius:8px; padding:10px 18px; font-size:12px; color:#ccc; z-index:300; animation:fadeUp .2s ease; white-space:nowrap; pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const manifestData = {
+  name:"VoiceNotes",short_name:"VoiceNotes",start_url:"./",display:"standalone",
+  background_color:"#0f0f0f",theme_color:"#0f0f0f",orientation:"portrait-primary",
+  icons:[
+    {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230f0f0f'/%3E%3Ccircle cx='96' cy='96' r='48' fill='%23e8433a'/%3E%3Crect x='78' y='78' width='36' height='36' rx='6' fill='white'/%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"},
+    {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230f0f0f'/%3E%3Ccircle cx='256' cy='256' r='128' fill='%23e8433a'/%3E%3Crect x='208' y='208' width='96' height='96' rx='16' fill='white'/%3E%3C/svg%3E",sizes:"512x512",type:"image/svg+xml"}
+  ]
+};
+const mb=new Blob([JSON.stringify(manifestData)],{type:'application/json'});
+const ml=document.createElement('link');ml.rel='manifest';ml.href=URL.createObjectURL(mb);document.head.appendChild(ml);
+if('serviceWorker'in navigator){
+  const sw=`const C='vn-v2';self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim();});self.addEventListener('fetch',e=>{e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));});`;
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{});
+}
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const fmt = ms => {
+  const s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60);
+  if(h>0) return `${h}:${String(m%60).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  return `${String(m).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+};
+const fmtDate = iso => {
+  const d=new Date(iso);
+  return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})+" · "+
+    d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+};
+const ls = {
+  get:(k,fb)=>{try{const v=localStorage.getItem(k);return v!=null?JSON.parse(v):fb;}catch{return fb;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+};
+
+/* Google Drive */
+const FNAME = "voicenotes-backup.json";
+const driveList = async t => {
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name=%27${FNAME}%27&fields=files(id)`,
+    {headers:{Authorization:`Bearer ${t}`}});
+  const d=await r.json(); return d.files?.[0]||null;
+};
+const driveRead = async (t,id) => {
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
+    {headers:{Authorization:`Bearer ${t}`}}); return r.json();
+};
+const driveWrite = async (t,notes,existingId) => {
+  const meta={name:FNAME,mimeType:"application/json",...(existingId?{}:{parents:["appDataFolder"]})};
+  const fd=new FormData();
+  fd.append("metadata",new Blob([JSON.stringify(meta)],{type:"application/json"}));
+  fd.append("file",new Blob([JSON.stringify(notes)],{type:"application/json"}));
+  const url=existingId
+    ?`https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=multipart`
+    :`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+  const r=await fetch(url,{method:existingId?"PATCH":"POST",headers:{Authorization:`Bearer ${t}`},body:fd});
+  return r.json();
+};
+
+/* Components */
+const WaveformBars = ({active}) => (
+  <div style={{display:"flex",alignItems:"center",gap:3,height:40}}>
+    {Array.from({length:24}).map((_,i)=>(
+      <div key={i} style={{width:3,borderRadius:2,background:active?"#e8433a":"#2e2e2e",
+        height:active?undefined:5,
+        animation:active?`wave${i%5} ${0.6+(i%4)*0.15}s ease-in-out infinite alternate`:"none",
+        animationDelay:`${(i*0.05).toFixed(2)}s`,minHeight:4,transition:"background .3s"}}/>
+    ))}
+  </div>
+);
+
+const Btn = ({onClick,children,accent,danger,small,disabled,sx={}}) => (
+  <button onClick={onClick} disabled={disabled} style={{
+    padding:small?"7px 11px":"10px 16px",
+    background:disabled?"#1a1a1a":accent?"#e8433a":danger?"#200e0e":"#1c1c1c",
+    color:disabled?"#3a3a3a":accent?"#fff":danger?"#d95555":"#888",
+    border:`1px solid ${accent&&!disabled?"#ff6b65":danger?"#3d1111":"#252525"}`,
+    borderRadius:8,fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:.5,
+    cursor:disabled?"default":"pointer",transition:"all .15s",whiteSpace:"nowrap",...sx
+  }}>{children}</button>
+);
+
+function Toast({msg}){ return msg?<div className="toast">{msg}</div>:null; }
+
+/* Export Modal */
+function ExportModal({notes,onClose}){
+  const dl=(name,content,type)=>{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([content],{type}));
+    a.download=name;a.click();
+  };
+  const asTxt=()=>dl("voicenotes.txt",
+    notes.map(n=>`=== ${n.title} ===\n${fmtDate(n.createdAt)} | ${fmt(n.duration)}\n\n${n.text}`).join("\n\n---\n\n"),
+    "text/plain");
+  const asJson=()=>dl("voicenotes.json",JSON.stringify(notes,null,2),"application/json");
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>Export All Notes</h3>
+        <p>Download all {notes.length} note{notes.length!==1?"s":""} to your device.</p>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+          <Btn accent onClick={asTxt}>Download .txt</Btn>
+          <Btn onClick={asJson}>Download .json</Btn>
+          <Btn onClick={onClose}>Cancel</Btn>
+        </div>
+        <p style={{color:"#383838",fontSize:11}}>
+          .txt — human-readable, one note per section<br/>
+          .json — full backup, can be re-imported later
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* Drive Setup Modal */
+function DriveSetupModal({onConnect,onClose}){
+  const [cid,setCid]=useState(ls.get("vn-gcid",""));
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>Google Drive Sync</h3>
+        <p>
+          Notes are saved to a private <strong style={{color:"#ccc"}}>App Data</strong> folder in your Drive — invisible to other apps and not counted against your storage quota meaningfully.
+          <br/><br/>
+          <strong style={{color:"#bbb"}}>One-time setup:</strong><br/>
+          1. Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a><br/>
+          2. Create a project → <strong style={{color:"#bbb"}}>APIs &amp; Services → Credentials</strong><br/>
+          3. <strong style={{color:"#bbb"}}>Create OAuth 2.0 Client ID</strong> → Web application<br/>
+          4. Add your app URL to <strong style={{color:"#bbb"}}>Authorised JavaScript origins</strong><br/>
+          5. Enable <strong style={{color:"#bbb"}}>Google Drive API</strong> in the library<br/>
+          6. Paste your Client ID below
+        </p>
+        <input value={cid} onChange={e=>setCid(e.target.value)} placeholder="Paste OAuth Client ID (ends in .apps.googleusercontent.com)"/>
+        <div style={{display:"flex",gap:8}}>
+          <Btn accent onClick={()=>{ls.set("vn-gcid",cid);onConnect(cid);}}>Connect Drive</Btn>
+          <Btn onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Recorder Panel */
+function RecorderPanel({onSaved}){
+  const [recording,setRecording]=useState(false);
+  const [transcript,setTranscript]=useState("");
+  const [interim,setInterim]=useState("");
+  const [elapsed,setElapsed]=useState(0);
+  const [showSave,setShowSave]=useState(false);
+  const [title,setTitle]=useState("");
+  const [manualText,setManualText]=useState("");
+  const [speechError,setSpeechError]=useState(""); // 'https' | 'permission' | 'other'
+  const [supported]=useState(()=>!!(window.SpeechRecognition||window.webkitSpeechRecognition));
+  const isHttps = location.protocol==="https:" || location.hostname==="localhost";
+  const recRef=useRef(),timerRef=useRef(),startRef=useRef();
+
+  useEffect(()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR)return;
+    const r=new SR();r.continuous=true;r.interimResults=true;r.lang="en-GB";
+    let committed=0;
+    r.onstart=()=>{committed=0;};
+    r.onresult=e=>{
+      setSpeechError("");
+      let f="",i="";
+      for(let x=e.resultIndex;x<e.results.length;x++){
+        if(e.results[x].isFinal){
+          if(x>=committed){f+=e.results[x][0].transcript+" ";committed=x+1;}
+        } else { i+=e.results[x][0].transcript; }
+      }
+      if(f)setTranscript(p=>p+f);
+      setInterim(i);
+    };
+    r.onerror=e=>{
+      if(e.error==="not-allowed"||e.error==="service-not-allowed"){
+        setSpeechError(!isHttps?"https":"permission");
+        clearInterval(timerRef.current);
+        setRecording(false);setInterim("");setShowSave(true);
+      }
+    };
+    r.onend=()=>{
+      committed=0;
+      if(recRef._shouldRun){try{r.start();}catch{}}
+    };
+    recRef.current=r;
+    return()=>{recRef._shouldRun=false;try{r.stop();}catch{}};
+  },[]);
+
+  const start=()=>{
+    setTranscript("");setInterim("");setElapsed(0);setTitle("");
+    setShowSave(false);setManualText("");setSpeechError("");
+    startRef.current=Date.now();
+    timerRef.current=setInterval(()=>setElapsed(Date.now()-startRef.current),500);
+    recRef._shouldRun=true;
+    try{recRef.current?.start();}catch{}
+    setRecording(true);
+  };
+  const stop=()=>{
+    recRef._shouldRun=false;
+    clearInterval(timerRef.current);
+    try{recRef.current?.stop();}catch{}
+    setRecording(false);setInterim("");setShowSave(true);
+  };
+  const save=()=>{
+    const text=(transcript+interim+manualText).trim();
+    if(!text)return;
+    onSaved({id:Date.now(),title:title.trim()||`Note ${new Date().toLocaleDateString("en-GB")}`,
+      text,duration:elapsed,createdAt:new Date().toISOString()});
+    setTranscript("");setInterim("");setShowSave(false);setElapsed(0);setManualText("");setSpeechError("");
+  };
+  const full=(transcript+interim+manualText).trim();
+
+  const httpsWarning = (
+    <div style={{background:"#110a00",border:"1px solid #4a2800",borderRadius:10,padding:14,marginBottom:12}}>
+      <div style={{fontSize:11,color:"#e8943a",fontWeight:500,marginBottom:6,letterSpacing:.5}}>
+        ⚠ HTTPS REQUIRED FOR MICROPHONE
+      </div>
+      <p style={{fontSize:11,color:"#a06030",lineHeight:1.7,marginBottom:10}}>
+        Chrome blocks mic access on local files. To fix: deploy to <strong style={{color:"#e8943a"}}>Netlify</strong> (free, 2 min) and open the <code style={{color:"#e8943a"}}>https://</code> URL instead.
+      </p>
+      <p style={{fontSize:11,color:"#7a5030",lineHeight:1.6}}>
+        <strong style={{color:"#a06030"}}>In the meantime</strong> — type your note manually below and tap Save.
+      </p>
+    </div>
+  );
+
+  const permissionWarning = (
+    <div style={{background:"#110a00",border:"1px solid #4a2800",borderRadius:10,padding:14,marginBottom:12}}>
+      <div style={{fontSize:11,color:"#e8943a",fontWeight:500,marginBottom:6,letterSpacing:.5}}>
+        ⚠ MICROPHONE PERMISSION DENIED
+      </div>
+      <p style={{fontSize:11,color:"#a06030",lineHeight:1.7}}>
+        Tap the 🔒 lock icon in Chrome's address bar → <strong style={{color:"#e8943a"}}>Site settings</strong> → allow Microphone, then refresh.
+      </p>
+    </div>
+  );
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",padding:"16px 20px 20px"}}>
+      {/* Warn upfront if not HTTPS */}
+      {!isHttps && !recording && !showSave && (
+        <div style={{background:"#110a00",border:"1px solid #3a1f00",borderRadius:8,padding:10,marginBottom:14,fontSize:11,color:"#886030",lineHeight:1.6}}>
+          ⚠ <strong style={{color:"#c07030"}}>Local file detected.</strong> Microphone won't work until you host this on HTTPS (e.g. Netlify). You can still type notes manually.
+        </div>
+      )}
+
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:12,paddingBottom:16}}>
+        <div onClick={recording?stop:start} style={{width:84,height:84,borderRadius:"50%",
+          background:recording?"#e8433a":"#1c1c1c",
+          border:`3px solid ${recording?"#ff6b65":"#2e2e2e"}`,
+          display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+          transition:"all .25s",boxShadow:recording?"0 0 40px rgba(232,67,58,.4)":"none"}}>
+          {recording?<div style={{width:26,height:26,borderRadius:4,background:"#fff"}}/>
+            :<div style={{width:28,height:28,borderRadius:"50%",background:"#e8433a"}}/>}
+        </div>
+        <div style={{marginTop:14,height:18,display:"flex",alignItems:"center",gap:8}}>
+          {recording&&<><div style={{width:7,height:7,borderRadius:"50%",background:"#e8433a",animation:"pulse 1s infinite"}}/>
+            <span style={{fontSize:13,color:"#e8433a",letterSpacing:1}}>{fmt(elapsed)}</span></>}
+          {!recording&&!showSave&&<span style={{fontSize:10,color:"#3a3a3a",letterSpacing:2}}>TAP TO RECORD</span>}
+        </div>
+        <div style={{marginTop:10}}><WaveformBars active={recording}/></div>
+      </div>
+
+      {/* Live transcript box */}
+      {recording&&(
+        <div className="fade-up" style={{background:"#131313",border:"1px solid #1e1e1e",borderRadius:10,
+          padding:14,flex:1,overflowY:"auto",marginBottom:12}}>
+          <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:8}}>LIVE TRANSCRIPT</div>
+          <p style={{fontSize:13,lineHeight:1.75,color:"#ccc",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+            {transcript}
+            {interim&&<span style={{color:"#555"}}>{interim}</span>}
+            {!transcript&&!interim&&<span style={{color:"#333"}}>Start speaking…</span>}
+          </p>
+        </div>
+      )}
+
+      {/* Save panel */}
+      {showSave&&!recording&&(
+        <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,flex:1}}>
+          {speechError==="https" && httpsWarning}
+          {speechError==="permission" && permissionWarning}
+
+          {/* Transcript (if any) */}
+          {(transcript||interim)&&(
+            <div style={{background:"#131313",border:"1px solid #1e1e1e",borderRadius:10,padding:14,overflowY:"auto",maxHeight:140}}>
+              <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:8}}>TRANSCRIPT</div>
+              <p style={{fontSize:13,lineHeight:1.75,color:"#ccc",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+                {transcript}{interim}
+              </p>
+            </div>
+          )}
+
+          {/* Manual text fallback — always visible when save panel is open */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
+            {!transcript&&!interim&&(
+              <div style={{fontSize:10,color:"#555",letterSpacing:1}}>
+                TYPE YOUR NOTE MANUALLY
+              </div>
+            )}
+            {(transcript||interim)&&(
+              <div style={{fontSize:10,color:"#555",letterSpacing:1}}>
+                ADD / EDIT CONTENT
+              </div>
+            )}
+            <textarea
+              value={manualText}
+              onChange={e=>setManualText(e.target.value)}
+              placeholder={transcript||interim?"Add more text here…":"Type your note here…"}
+              style={{flex:1,minHeight:90,background:"#161616",border:"1px solid #252525",borderRadius:8,
+                padding:"10px 12px",color:"#e0e0e0",fontSize:13,fontFamily:"inherit",lineHeight:1.7}}
+            />
+          </div>
+
+          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Note title (optional)"
+            style={{width:"100%",background:"#161616",border:"1px solid #252525",borderRadius:8,
+              padding:"10px 12px",color:"#e0e0e0",fontSize:13,fontFamily:"inherit"}}/>
+          <div style={{display:"flex",gap:8}}>
+            <Btn accent onClick={save} disabled={!full}>SAVE NOTE</Btn>
+            <Btn onClick={()=>{setTranscript("");setInterim("");setShowSave(false);setElapsed(0);setManualText("");setSpeechError("");}}>DISCARD</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* New note (manual only) shortcut when not recording */}
+      {!recording&&!showSave&&(
+        <button onClick={()=>setShowSave(true)}
+          style={{marginTop:"auto",background:"none",border:"1px dashed #252525",borderRadius:8,
+            padding:"10px",color:"#444",fontSize:11,fontFamily:"inherit",cursor:"pointer",letterSpacing:1}}>
+          + TYPE A NOTE MANUALLY
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* Note Detail */
+function NoteDetail({note,onDelete,onEdit,onBack,onToast}){
+  const [editing,setEditing]=useState(false);
+  const [editText,setEditText]=useState(note.text);
+  useEffect(()=>{setEditText(note.text);setEditing(false);},[note.id]);
+
+  const share=()=>{
+    if(navigator.share){
+      navigator.share({title:note.title,text:`${note.title}\n${fmtDate(note.createdAt)}\n\n${note.text}`}).catch(()=>{});
+    } else {
+      navigator.clipboard.writeText(note.text).then(()=>onToast("Copied (Share not available on this browser)"));
+    }
+  };
+
+  return(
+    <div className="fade-up" style={{padding:"16px 20px 80px",overflowY:"auto",flex:1}}>
+      {onBack&&(
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#555",fontSize:12,
+          fontFamily:"inherit",cursor:"pointer",letterSpacing:1,marginBottom:16,padding:0}}>
+          ← BACK
+        </button>
+      )}
+      <div style={{marginBottom:16}}>
+        <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:"#fff",
+          letterSpacing:-.5,marginBottom:4}}>{note.title}</h2>
+        <div style={{fontSize:10,color:"#444"}}>{fmtDate(note.createdAt)} · {fmt(note.duration)}</div>
+      </div>
+      <div style={{background:"#131313",border:"1px solid #1e1e1e",borderRadius:12,padding:16,
+        marginBottom:14,minHeight:160}}>
+        {editing
+          ?<textarea value={editText} onChange={e=>setEditText(e.target.value)}
+              style={{width:"100%",minHeight:200,background:"transparent",border:"none",
+                color:"#d0d0d0",fontSize:13,fontFamily:"inherit",lineHeight:1.8,padding:0}}/>
+          :<p style={{fontSize:13,lineHeight:1.85,color:"#c8c8c8",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{note.text}</p>
+        }
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {editing
+          ?<><Btn accent small onClick={()=>{onEdit(note.id,editText);setEditing(false);}}>Save</Btn>
+              <Btn small onClick={()=>setEditing(false)}>Cancel</Btn></>
+          :<>
+            <Btn small onClick={()=>setEditing(true)}>Edit</Btn>
+            <Btn small onClick={()=>navigator.clipboard.writeText(note.text).then(()=>onToast("Copied ✓"))}>Copy</Btn>
+            <Btn small onClick={share} sx={{background:"#091a15",color:"#3db882",borderColor:"#193d2a"}}>Share ↗</Btn>
+            <Btn small danger onClick={()=>onDelete(note.id)}>Delete</Btn>
+          </>
+        }
+      </div>
+    </div>
+  );
+}
+
+/* Notes List */
+function NotesList({notes,onSelect,activeId}){
+  if(!notes.length) return(
+    <div style={{padding:"32px 20px",fontSize:12,color:"#333",lineHeight:1.8,textAlign:"center"}}>
+      No notes yet.<br/>Tap the mic to record.
+    </div>
+  );
+  return(
+    <div style={{overflowY:"auto",flex:1}}>
+      {notes.map(n=>(
+        <div key={n.id} onClick={()=>onSelect(n)} style={{padding:"14px 20px",cursor:"pointer",
+          background:activeId===n.id?"#181818":"transparent",
+          borderLeft:`2px solid ${activeId===n.id?"#e8433a":"transparent"}`,
+          transition:"all .15s",borderBottom:"1px solid #141414"}}>
+          <div style={{fontSize:13,fontWeight:500,color:activeId===n.id?"#fff":"#bbb",
+            marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{n.title}</div>
+          <div style={{fontSize:10,color:"#444",marginBottom:5}}>{fmtDate(n.createdAt)}</div>
+          <div style={{fontSize:11,color:"#555",display:"-webkit-box",WebkitLineClamp:2,
+            WebkitBoxOrient:"vertical",overflow:"hidden",lineHeight:1.5}}>{n.text}</div>
+          <div style={{marginTop:5,fontSize:10,color:"#333"}}>⏱ {fmt(n.duration)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* App */
+function App(){
+  const [notes,setNotes]=useState(()=>ls.get("vn-notes",[]));
+  const [activeNote,setActiveNote]=useState(null);
+  const [mobileTab,setMobileTab]=useState("record");
+  const [toast,setToast]=useState("");
+  const [showExport,setShowExport]=useState(false);
+  const [showDriveSetup,setShowDriveSetup]=useState(false);
+  const [driveToken,setDriveToken]=useState(null);
+  const [driveFileId,setDriveFileId]=useState(ls.get("vn-dfid",null));
+  const [driveSyncing,setDriveSyncing]=useState(false);
+  const [driveConnected,setDriveConnected]=useState(false);
+  const tokenClientRef=useRef(null);
+  const toastRef=useRef(null);
+
+  useEffect(()=>{ls.set("vn-notes",notes);},[notes]);
+
+  const showToast=useCallback(msg=>{
+    setToast(msg);clearTimeout(toastRef.current);
+    toastRef.current=setTimeout(()=>setToast(""),2800);
+  },[]);
+
+  /* Drive sync */
+  const syncDrive=useCallback(async(notesToSync,token,fileId)=>{
+    const t=token||driveToken; if(!t)return;
+    setDriveSyncing(true);
+    try{
+      let fid=fileId||driveFileId;
+      if(!fid){const ex=await driveList(t);fid=ex?.id||null;}
+      const res=await driveWrite(t,notesToSync,fid);
+      if(res.id){setDriveFileId(res.id);ls.set("vn-dfid",res.id);}
+      showToast("Saved to Drive ✓");
+    }catch{showToast("Drive sync failed");}
+    setDriveSyncing(false);
+  },[driveToken,driveFileId,showToast]);
+
+  /* Drive connect */
+  const connectDrive=useCallback(clientId=>{
+    setShowDriveSetup(false);
+    if(!window.google?.accounts?.oauth2){showToast("Google library loading, try again in a moment");return;}
+    tokenClientRef.current=google.accounts.oauth2.initTokenClient({
+      client_id:clientId,
+      scope:"https://www.googleapis.com/auth/drive.appdata",
+      callback:async resp=>{
+        if(resp.error){showToast("Auth error: "+resp.error);return;}
+        const t=resp.access_token;
+        setDriveToken(t);setDriveConnected(true);
+        showToast("Drive connected ✓");
+        setDriveSyncing(true);
+        try{
+          const f=await driveList(t);
+          if(f){
+            ls.set("vn-dfid",f.id);setDriveFileId(f.id);
+            const remote=await driveRead(t,f.id);
+            if(Array.isArray(remote)&&remote.length){
+              setNotes(remote);showToast(`Loaded ${remote.length} notes from Drive ✓`);
+            } else { syncDrive(notes,t,f.id); }
+          } else { syncDrive(notes,t,null); }
+        }catch{showToast("Connected but couldn't read backup");}
+        setDriveSyncing(false);
+      }
+    });
+    tokenClientRef.current.requestAccessToken();
+  },[notes,showToast,syncDrive]);
+
+  /* Note actions */
+  const addNote=n=>{
+    const u=[n,...notes];setNotes(u);setActiveNote(n);setMobileTab("detail");
+    if(driveConnected)syncDrive(u);
+  };
+  const deleteNote=id=>{
+    const u=notes.filter(n=>n.id!==id);setNotes(u);
+    if(activeNote?.id===id){setActiveNote(null);setMobileTab("notes");}
+    if(driveConnected)syncDrive(u);
+  };
+  const editNote=(id,text)=>{
+    const u=notes.map(n=>n.id===id?{...n,text}:n);setNotes(u);
+    if(activeNote?.id===id)setActiveNote(p=>({...p,text}));
+    if(driveConnected)syncDrive(u);
+  };
+
+  /* Toolbar */
+  const Toolbar=({mobile})=>(
+    <div style={{display:"flex",alignItems:"center",gap:6}}>
+      <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,
+        color:driveConnected?"#3db882":"#3a3a3a",letterSpacing:.5}}>
+        <div style={{width:6,height:6,borderRadius:"50%",
+          background:driveConnected?"#3db882":"#2a2a2a"}}/>
+        {driveSyncing
+          ?<span className="spinning" style={{fontSize:13,color:"#3db882"}}>↻</span>
+          :<span style={{display:mobile?"none":"inline"}}>DRIVE</span>
+        }
+      </div>
+      <Btn small onClick={()=>driveConnected?syncDrive(notes):setShowDriveSetup(true)}
+        sx={{fontSize:10,padding:"5px 10px",
+          background:driveConnected?"#091a15":"#1c1c1c",
+          color:driveConnected?"#3db882":"#666",
+          borderColor:driveConnected?"#1a3d27":"#252525"}}>
+        {driveConnected?"Sync":"Drive"}
+      </Btn>
+      {driveConnected&&(
+        <Btn small onClick={()=>{setDriveToken(null);setDriveConnected(false);showToast("Disconnected from Drive");}}
+          sx={{fontSize:10,padding:"5px 8px"}}>✕</Btn>
+      )}
+      <Btn small onClick={()=>setShowExport(true)} sx={{fontSize:10,padding:"5px 10px"}}>Export</Btn>
+    </div>
+  );
+
+  const EmptyDetail=()=>(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",
+      flexDirection:"column",gap:10,color:"#252525"}}>
+      <div style={{fontSize:44}}>🎙</div>
+      <div style={{fontSize:10,letterSpacing:2}}>SELECT A NOTE</div>
+    </div>
+  );
+
+  return(
+    <>
+      {showExport&&<ExportModal notes={notes} onClose={()=>setShowExport(false)}/>}
+      {showDriveSetup&&<DriveSetupModal onConnect={connectDrive} onClose={()=>setShowDriveSetup(false)}/>}
+      <Toast msg={toast}/>
+
+      {/* Desktop */}
+      <div className="desktop-cols" style={{display:"flex",height:"100vh"}}>
+        <div style={{position:"fixed",top:0,left:0,right:0,height:48,background:"#0f0f0f",
+          borderBottom:"1px solid #1a1a1a",display:"flex",alignItems:"center",
+          padding:"0 24px",gap:10,zIndex:10}}>
+          <span style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,letterSpacing:-1,color:"#fff"}}>VOICENOTES</span>
+          <span style={{fontSize:10,color:"#444",letterSpacing:2}}>RECORDER</span>
+          <div style={{flex:1}}/>
+          <Toolbar/>
+          <span style={{fontSize:10,color:"#383838",marginLeft:6}}>{notes.length} note{notes.length!==1?"s":""}</span>
+        </div>
+        <div style={{marginTop:48,display:"flex",flex:1,overflow:"hidden"}}>
+          <div style={{width:300,minWidth:300,borderRight:"1px solid #1a1a1a",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+            <RecorderPanel onSaved={addNote}/>
+          </div>
+          <div style={{width:250,minWidth:250,borderRight:"1px solid #1a1a1a",display:"flex",flexDirection:"column",overflowY:"auto",paddingTop:16}}>
+            <div style={{padding:"0 20px 10px",fontSize:10,color:"#383838",letterSpacing:2}}>ALL NOTES</div>
+            <NotesList notes={notes} onSelect={n=>{setActiveNote(n);}} activeId={activeNote?.id}/>
+          </div>
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflowY:"auto"}}>
+            {activeNote
+              ?<NoteDetail note={activeNote} onDelete={deleteNote} onEdit={editNote} onToast={showToast}/>
+              :<EmptyDetail/>}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile */}
+      <div className="mobile-view" style={{paddingTop:52,paddingBottom:56}}>
+        <div style={{position:"fixed",top:0,left:0,right:0,height:52,background:"#0f0f0f",
+          borderBottom:"1px solid #1a1a1a",display:"flex",alignItems:"center",
+          padding:"0 14px",zIndex:10,gap:8}}>
+          <span style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:"#fff",letterSpacing:-1}}>VOICENOTES</span>
+          <div style={{flex:1}}/>
+          <Toolbar mobile/>
+        </div>
+        {mobileTab==="record"&&<RecorderPanel onSaved={addNote}/>}
+        {mobileTab==="notes"&&(
+          <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+            <div style={{padding:"16px 20px 8px",fontSize:10,color:"#383838",letterSpacing:2}}>ALL NOTES</div>
+            <NotesList notes={notes} onSelect={n=>{setActiveNote(n);setMobileTab("detail");}} activeId={activeNote?.id}/>
+          </div>
+        )}
+        {mobileTab==="detail"&&(activeNote
+          ?<NoteDetail note={activeNote} onDelete={deleteNote} onEdit={editNote}
+              onBack={()=>setMobileTab("notes")} onToast={showToast}/>
+          :<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+              flexDirection:"column",gap:10,color:"#2a2a2a"}}>
+            <div style={{fontSize:40}}>🎙</div>
+            <div style={{fontSize:10,letterSpacing:2}}>NO NOTE SELECTED</div>
+          </div>
+        )}
+      </div>
+
+      <div className="tab-bar">
+        {[["record","⏺","REC"],["notes","📋","NOTES"],["detail","📄","NOTE"]].map(([tab,icon,label])=>(
+          <button key={tab} className={"tab-btn"+(mobileTab===tab?" active":"")} onClick={()=>setMobileTab(tab)}>
+            <span className="tab-icon">{icon}</span><span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
