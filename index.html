@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<title>VoiceNotes</title>
+<style>
+body{margin:0;background:#0f0f0f;color:#e0e0e0;font-family:monospace;padding:20px}
+h1{color:#e8433a;font-size:20px;margin-bottom:20px}
+#status{background:#1a1a1a;padding:12px;border-radius:8px;margin-bottom:16px;font-size:12px;color:#888}
+button{background:#e8433a;color:#fff;border:none;padding:14px 24px;border-radius:8px;font-size:14px;cursor:pointer;width:100%;margin-bottom:10px}
+button.sec{background:#1c1c1c;color:#888;border:1px solid #333}
+textarea{width:100%;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;color:#e0e0e0;font-family:monospace;font-size:13px;margin-bottom:10px}
+input{width:100%;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;color:#e0e0e0;font-family:monospace;font-size:13px;margin-bottom:10px;box-sizing:border-box}
+.note{background:#1a1a1a;border-left:3px solid #e8433a;padding:12px;margin-bottom:10px;border-radius:0 8px 8px 0}
+.note-title{font-size:13px;color:#fff;font-weight:bold;margin-bottom:4px}
+.note-body{font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#transcript{min-height:80px}
+</style>
+</head>
+<body>
+<h1>🎙 VOICENOTES</h1>
+<div id="status">Ready</div>
+
+<div id="rec-section">
+  <button id="rec-btn" onclick="toggleRec()">⏺ TAP TO RECORD</button>
+  <textarea id="transcript" placeholder="Transcript will appear here..."></textarea>
+  <input id="note-title" type="text" placeholder="Note title (optional)"/>
+  <button onclick="saveNote()">SAVE NOTE</button>
+  <button class="sec" onclick="discard()">Discard</button>
+</div>
+
+<hr style="border-color:#222;margin:20px 0"/>
+<div id="notes-list"></div>
+
+<script>
+var notes = [];
+var recording = false;
+var rec = null;
+var base = '';
+var sessionFinal = '';
+var active = false;
+var elapsed = 0;
+var timer = null;
+
+try { notes = JSON.parse(localStorage.getItem('vn') || '[]'); } catch(e) {}
+
+function status(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function initRec() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { status('Speech not supported - type manually'); return false; }
+  rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.lang = 'en-GB';
+  rec.onresult = function(e) {
+    var fin = '', inter = '';
+    for (var i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) fin += e.results[i][0].transcript + ' ';
+      else inter = e.results[i][0].transcript;
+    }
+    sessionFinal = fin;
+    document.getElementById('transcript').value = base + fin + (inter ? '('+inter+')' : '');
+    status('Recording... ' + Math.floor(elapsed/1000) + 's');
+  };
+  rec.onerror = function(e) {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      stopRec();
+      status('Mic blocked - check permissions');
+    }
+  };
+  rec.onend = function() {
+    if (active) {
+      base = base + sessionFinal;
+      sessionFinal = '';
+      document.getElementById('transcript').value = base;
+      try { rec.start(); } catch(e) {}
+    }
+  };
+  return true;
+}
+
+function toggleRec() {
+  if (recording) stopRec();
+  else startRec();
+}
+
+function startRec() {
+  base = ''; sessionFinal = ''; elapsed = 0;
+  document.getElementById('transcript').value = '';
+  document.getElementById('note-title').value = '';
+  if (!rec && !initRec()) return;
+  active = true;
+  recording = true;
+  document.getElementById('rec-btn').textContent = '⏹ STOP RECORDING';
+  document.getElementById('rec-btn').style.background = '#333';
+  timer = setInterval(function(){ elapsed += 500; status('Recording... ' + Math.floor(elapsed/1000) + 's'); }, 500);
+  try { rec.start(); } catch(e) {}
+  status('Recording started - speak now');
+}
+
+function stopRec() {
+  active = false;
+  recording = false;
+  clearInterval(timer);
+  try { rec.stop(); } catch(e) {}
+  document.getElementById('rec-btn').textContent = '⏺ TAP TO RECORD';
+  document.getElementById('rec-btn').style.background = '#e8433a';
+  var t = (base + sessionFinal).trim();
+  document.getElementById('transcript').value = t;
+  status(t ? 'Done - edit and save' : 'No speech detected - type manually');
+}
+
+function saveNote() {
+  var text = document.getElementById('transcript').value.trim();
+  if (!text) { status('Nothing to save'); return; }
+  var title = document.getElementById('note-title').value.trim() || ('Note ' + new Date().toLocaleDateString('en-GB'));
+  var note = { id: Date.now(), title: title, text: text, date: new Date().toISOString() };
+  notes.unshift(note);
+  localStorage.setItem('vn', JSON.stringify(notes));
+  document.getElementById('transcript').value = '';
+  document.getElementById('note-title').value = '';
+  base = ''; sessionFinal = '';
+  renderNotes();
+  status('Saved: ' + title);
+}
+
+function discard() {
+  document.getElementById('transcript').value = '';
+  document.getElementById('note-title').value = '';
+  base = ''; sessionFinal = '';
+  status('Discarded');
+}
+
+function renderNotes() {
+  var el = document.getElementById('notes-list');
+  el.innerHTML = '';
+  if (!notes.length) { el.innerHTML = '<p style="color:#444;font-size:12px">No notes yet</p>'; return; }
+  notes.forEach(function(n) {
+    var d = document.createElement('div');
+    d.className = 'note';
+    var t = document.createElement('div'); t.className = 'note-title'; t.textContent = n.title;
+    var b = document.createElement('div'); b.className = 'note-body'; b.textContent = n.text;
+    var del = document.createElement('button');
+    del.className = 'sec';
+    del.textContent = 'Delete';
+    del.style.marginTop = '8px';
+    del.style.width = 'auto';
+    del.style.padding = '4px 10px';
+    del.style.fontSize = '11px';
+    del.onclick = (function(id){ return function(){ notes = notes.filter(function(x){ return x.id !== id; }); localStorage.setItem('vn', JSON.stringify(notes)); renderNotes(); }; })(n.id);
+    d.appendChild(t); d.appendChild(b); d.appendChild(del);
+    el.appendChild(d);
+  });
+}
+
+renderNotes();
+status('Ready - tap to record or type manually');
+</script>
+</body>
+</html>
