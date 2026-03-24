@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="theme-color" content="#0f0f0f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="VoiceNotes"/>
+<title>VoiceNotes</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0f0f0f;color:#e0e0e0;font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent}
+input,textarea,button{font-family:inherit;-webkit-appearance:none;appearance:none}
+input:focus,textarea:focus{outline:none}
+textarea{resize:none}
+button{cursor:pointer;border:none;background:none;-webkit-tap-highlight-color:transparent}
+
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* Header */
+#header{display:flex;align-items:center;padding:0 14px;height:52px;border-bottom:1px solid #1a1a1a;flex-shrink:0;gap:8px}
+#header h1{font-size:17px;font-weight:900;letter-spacing:-1px;color:#fff;text-transform:uppercase}
+#header .sp{flex:1}
+#note-count{font-size:10px;color:#383838}
+.tbtn{padding:5px 10px;background:#1c1c1c;color:#666;border:1px solid #252525;border-radius:7px;font-size:10px;letter-spacing:.5px}
+.tbtn.green{background:#091a15;color:#3db882;border-color:#193d2a}
+#drive-dot{width:6px;height:6px;border-radius:50%;background:#2a2a2a;flex-shrink:0}
+#drive-dot.on{background:#3db882}
+
+/* Tabs */
+#tabbar{display:flex;height:56px;border-top:1px solid #1e1e1e;background:#111;flex-shrink:0}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#555;font-size:9px;letter-spacing:1px;border:none;background:none;-webkit-tap-highlight-color:transparent}
+.tab.on{color:#e8433a}
+.tab-icon{font-size:20px;line-height:1}
+
+/* Panels */
+#panels{flex:1;overflow:hidden;position:relative}
+.panel{position:absolute;inset:0;overflow-y:auto;display:none;flex-direction:column;padding:16px 20px 20px}
+.panel.on{display:flex}
+#notes-panel,#detail-panel{padding:0}
+
+/* Rec button */
+#rec-center{display:flex;flex-direction:column;align-items:center;padding:16px 0}
+#rec-btn{width:84px;height:84px;border-radius:50%;background:#1c1c1c;border:3px solid #2e2e2e;display:flex;align-items:center;justify-content:center;transition:all .25s;flex-shrink:0}
+#rec-btn.on{background:#e8433a;border-color:#ff6b65;box-shadow:0 0 40px rgba(232,67,58,.4)}
+#dot{width:28px;height:28px;border-radius:50%;background:#e8433a}
+#sq{width:26px;height:26px;border-radius:4px;background:#fff;display:none}
+#rec-btn.on #dot{display:none}
+#rec-btn.on #sq{display:block}
+#rec-info{margin-top:14px;height:18px;display:flex;align-items:center;gap:8px}
+#rec-hint{font-size:10px;color:#3a3a3a;letter-spacing:2px}
+#rec-timer{font-size:13px;color:#e8433a;letter-spacing:1px;display:none}
+#rec-pulse{width:7px;height:7px;border-radius:50%;background:#e8433a;display:none;animation:pulse 1s infinite}
+
+/* Waveform */
+#waveform{display:flex;align-items:center;gap:3px;height:40px;margin-top:10px}
+.bar{width:3px;border-radius:2px;background:#2e2e2e;height:5px;transition:background .3s}
+.bar.on{background:#e8433a}
+
+/* Boxes */
+.box{background:#131313;border:1px solid #1e1e1e;border-radius:10px;padding:14px;margin-bottom:10px}
+.box-label{font-size:10px;color:#444;letter-spacing:2px;margin-bottom:8px}
+.box-text{font-size:13px;line-height:1.75;color:#ccc;white-space:pre-wrap;word-break:break-word}
+#live-box{flex:1;overflow-y:auto;display:none}
+#live-hint{color:#333}
+
+/* Save panel */
+#save-section{display:none;flex-direction:column;gap:10px;flex:1}
+#err-box{background:#110a00;border:1px solid #4a2800;border-radius:10px;padding:14px;display:none}
+#err-title{font-size:11px;color:#e8943a;margin-bottom:6px}
+#err-msg{font-size:11px;color:#a06030;line-height:1.7}
+#saved-transcript{max-height:130px;overflow-y:auto;display:none}
+#manual-area{flex:1;min-height:80px;background:#161616;border:1px solid #252525;border-radius:8px;padding:10px 12px;color:#e0e0e0;font-size:13px;line-height:1.7;width:100%}
+#manual-area::placeholder{color:#444}
+#title-input{width:100%;background:#161616;border:1px solid #252525;border-radius:8px;padding:10px 12px;color:#e0e0e0;font-size:13px}
+#title-input::placeholder{color:#444}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 14px;background:#1c1c1c;color:#888;border:1px solid #252525;border-radius:8px;font-size:11px;letter-spacing:.5px;transition:all .15s;white-space:nowrap}
+.btn.acc{background:#e8433a;color:#fff;border-color:#ff6b65}
+.btn.acc:disabled{background:#1a1a1a;color:#3a3a3a;border-color:#252525}
+.btn.red{background:#200e0e;color:#d95555;border-color:#3d1111}
+.btn.grn{background:#091a15;color:#3db882;border-color:#193d2a}
+.btn.lg{padding:10px 16px;font-size:12px}
+#manual-btn{margin-top:auto;background:none;border:1px dashed #252525;border-radius:8px;padding:10px;color:#444;font-size:11px;letter-spacing:1px;width:100%;display:none}
+
+/* Notes list */
+#notes-header{padding:16px 20px 8px;font-size:10px;color:#383838;letter-spacing:2px;flex-shrink:0}
+#list{flex:1;overflow-y:auto}
+.ni{padding:14px 20px;cursor:pointer;border-left:2px solid transparent;border-bottom:1px solid #141414;transition:all .15s}
+.ni.on{background:#181818;border-left-color:#e8433a}
+.ni-title{font-size:13px;font-weight:600;color:#bbb;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ni.on .ni-title{color:#fff}
+.ni-date{font-size:10px;color:#444;margin-bottom:4px}
+.ni-preview{font-size:11px;color:#555;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
+.ni-dur{margin-top:4px;font-size:10px;color:#333}
+#list-empty{padding:32px 20px;font-size:12px;color:#333;line-height:1.8;text-align:center}
+
+/* Detail */
+#detail-panel{padding:16px 20px 80px;overflow-y:auto}
+#back-btn{background:none;border:none;color:#555;font-size:12px;letter-spacing:1px;margin-bottom:16px;padding:0;display:block}
+#d-title{font-size:18px;font-weight:900;color:#fff;letter-spacing:-.5px;margin-bottom:4px;text-transform:uppercase;word-break:break-word}
+#d-meta{font-size:10px;color:#444;margin-bottom:16px}
+#d-body{background:#131313;border:1px solid #1e1e1e;border-radius:12px;padding:16px;margin-bottom:14px;min-height:120px}
+#d-text{font-size:13px;line-height:1.85;color:#c8c8c8;white-space:pre-wrap;word-break:break-word}
+#d-edit{width:100%;min-height:180px;background:transparent;border:none;color:#d0d0d0;font-size:13px;font-family:inherit;line-height:1.8;padding:0;display:none;outline:none;resize:none}
+#d-empty{display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:#252525;font-size:10px;letter-spacing:2px;padding-top:80px}
+
+/* Toast */
+#toast{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);background:#1e1e1e;border:1px solid #2e2e2e;border-radius:8px;padding:10px 18px;font-size:12px;color:#ccc;z-index:300;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s}
+#toast.on{opacity:1}
+
+/* Modal */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+#overlay.on{display:flex}
+#modal{background:#161616;border:1px solid #252525;border-radius:14px;padding:24px;width:100%;max-width:400px;max-height:85vh;overflow-y:auto}
+#modal h3{font-size:15px;font-weight:900;color:#fff;margin-bottom:8px;text-transform:uppercase;letter-spacing:-.5px}
+#modal p{font-size:12px;color:#666;line-height:1.7;margin-bottom:14px;white-space:pre-wrap}
+#modal-input{width:100%;background:#111;border:1px solid #252525;border-radius:8px;padding:10px 12px;color:#e0e0e0;font-size:12px;margin-bottom:12px;display:none}
+#modal-input::placeholder{color:#444}
+#modal-btns{display:flex;gap:8px;flex-wrap:wrap}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes w0{0%{height:8px}100%{height:32px}}
+@keyframes w1{0%{height:12px}100%{height:22px}}
+@keyframes w2{0%{height:6px}100%{height:38px}}
+@keyframes w3{0%{height:14px}100%{height:18px}}
+@keyframes w4{0%{height:10px}100%{height:28px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>VoiceNotes</h1>
+    <div class="sp"></div>
+    <div id="drive-dot"></div>
+    <button class="tbtn" id="drive-btn" onclick="driveClick()">Drive</button>
+    <button class="tbtn" onclick="showExport()">Export</button>
+    <span id="note-count">0 notes</span>
+  </div>
+
+  <div id="panels">
+    <div class="panel on" id="rec-panel">
+      <div id="rec-center">
+        <div id="rec-btn" onclick="toggleRec()"><div id="dot"></div><div id="sq"></div></div>
+        <div id="rec-info">
+          <div id="rec-pulse"></div>
+          <span id="rec-timer">00:00</span>
+          <span id="rec-hint">TAP TO RECORD</span>
+        </div>
+        <div id="waveform"></div>
+      </div>
+      <div class="box" id="live-box">
+        <div class="box-label">LIVE TRANSCRIPT</div>
+        <div class="box-text" id="live-text"><span id="live-final"></span><span id="live-inter" style="color:#555"></span><span id="live-hint">Start speaking…</span></div>
+      </div>
+      <div id="save-section">
+        <div id="err-box"><div id="err-title"></div><div id="err-msg"></div></div>
+        <div class="box" id="saved-transcript"><div class="box-label">TRANSCRIPT</div><div class="box-text" id="saved-text"></div></div>
+        <div style="font-size:10px;color:#555;letter-spacing:1px" id="manual-label">TYPE YOUR NOTE</div>
+        <textarea id="manual-area" placeholder="Type your note here…" oninput="updateSaveBtn()"></textarea>
+        <input id="title-input" type="text" placeholder="Note title (optional)"/>
+        <div class="btn-row">
+          <button class="btn acc lg" id="save-btn" onclick="saveNote()" disabled>SAVE NOTE</button>
+          <button class="btn lg" onclick="discard()">DISCARD</button>
+        </div>
+      </div>
+      <button id="manual-btn" onclick="openManual()">+ TYPE A NOTE MANUALLY</button>
+    </div>
+
+    <div class="panel" id="notes-panel">
+      <div id="notes-header">ALL NOTES</div>
+      <div id="list"><div id="list-empty">No notes yet.<br>Tap the mic to record.</div></div>
+    </div>
+
+    <div class="panel" id="detail-panel">
+      <button id="back-btn" onclick="goTab('notes')">← BACK</button>
+      <div id="d-wrap">
+        <div id="d-empty"><span style="font-size:40px">🎙</span><span>SELECT A NOTE</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tabbar">
+    <button class="tab on" id="t-record" onclick="goTab('record')"><span class="tab-icon">⏺</span><span>REC</span></button>
+    <button class="tab" id="t-notes" onclick="goTab('notes')"><span class="tab-icon">📋</span><span>NOTES</span></button>
+    <button class="tab" id="t-detail" onclick="goTab('detail')"><span class="tab-icon">📄</span><span>NOTE</span></button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="overlay" onclick="closeModal()">
+  <div id="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title"></h3>
+    <p id="modal-body"></p>
+    <input id="modal-input" type="text"/>
+    <div id="modal-btns"></div>
+  </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async></script>
+<script>
+var notes = [], activeId = null, recording = false;
+var base = '', sessionFin = '', recActive = false;
+var elapsed = 0, recTimer = null, rec = null;
+var driveToken = null, driveFileId = localStorage.getItem('vn-dfid') || null;
+var driveOn = false, editing = false, toastT = null;
+
+try { notes = JSON.parse(localStorage.getItem('vn') || '[]'); } catch(e) {}
+
+/* Init */
+buildWave();
+renderList();
+updateUI();
+initRec();
+
+function buildWave(){
+  var wf = document.getElementById('waveform');
+  for(var i=0;i<24;i++){
+    var b = document.createElement('div');
+    b.className = 'bar';
+    b.id = 'b'+i;
+    wf.appendChild(b);
+  }
+}
+
+function animWave(on){
+  for(var i=0;i<24;i++){
+    var b = document.getElementById('b'+i);
+    if(!b) continue;
+    if(on){
+      b.classList.add('on');
+      b.style.animation = 'w'+(i%5)+' '+(0.6+(i%4)*0.15)+'s ease-in-out infinite alternate';
+      b.style.animationDelay = (i*0.05).toFixed(2)+'s';
+    } else {
+      b.classList.remove('on');
+      b.style.animation = 'none';
+      b.style.height = '5px';
+    }
+  }
+}
+
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ t.classList.remove('on'); }, 2500);
+}
+
+function fmt(ms){
+  var s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60);
+  if(h>0) return h+':'+pad(m%60)+':'+pad(s%60);
+  return pad(m)+':'+pad(s%60);
+}
+function pad(n){ return ('0'+n).slice(-2); }
+function fmtDate(iso){
+  var d=new Date(iso);
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+function esc(s){
+  var d=document.createElement('div');
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+}
+function save(){ localStorage.setItem('vn', JSON.stringify(notes)); }
+function updateUI(){
+  var c=notes.length;
+  document.getElementById('note-count').textContent = c+' note'+(c!==1?'s':'');
+}
+
+/* Tabs */
+function goTab(tab){
+  ['record','notes','detail'].forEach(function(t){
+    document.getElementById((t==='record'?'rec':t)+'-panel').classList.remove('on');
+    document.getElementById('t-'+t).classList.remove('on');
+  });
+  document.getElementById((tab==='record'?'rec':tab)+'-panel').classList.add('on');
+  document.getElementById('t-'+tab).classList.add('on');
+}
+
+/* Speech */
+function initRec(){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ return; }
+  rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.lang = 'en-GB';
+  rec.onresult = function(e){
+    var fin='', inter='';
+    for(var i=0;i<e.results.length;i++){
+      if(e.results[i].isFinal) fin += e.results[i][0].transcript+' ';
+      else inter = e.results[i][0].transcript;
+    }
+    sessionFin = fin;
+    document.getElementById('live-final').textContent = base+fin;
+    document.getElementById('live-inter').textContent = inter;
+    document.getElementById('live-hint').style.display = (base||fin||inter)?'none':'inline';
+  };
+  rec.onerror = function(e){
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      var https = location.protocol==='https:'||location.hostname==='localhost';
+      stopRec(https?'permission':'https');
+    }
+  };
+  rec.onend = function(){
+    document.getElementById('live-inter').textContent = '';
+    if(recActive){
+      base = base+sessionFin;
+      sessionFin = '';
+      document.getElementById('live-final').textContent = base;
+      try{ rec.start(); }catch(e){}
+    }
+  };
+}
+
+function toggleRec(){ recording ? stopRec('') : startRec(); }
+
+function startRec(){
+  base=''; sessionFin=''; recActive=true; recording=true; elapsed=0;
+  document.getElementById('rec-btn').classList.add('on');
+  document.getElementById('rec-hint').style.display='none';
+  document.getElementById('rec-pulse').style.display='block';
+  document.getElementById('rec-timer').style.display='block';
+  document.getElementById('live-box').style.display='block';
+  document.getElementById('live-final').textContent='';
+  document.getElementById('live-inter').textContent='';
+  document.getElementById('live-hint').style.display='inline';
+  document.getElementById('save-section').style.display='none';
+  document.getElementById('manual-btn').style.display='none';
+  animWave(true);
+  recTimer = setInterval(function(){ elapsed+=500; document.getElementById('rec-timer').textContent=fmt(elapsed); },500);
+  if(rec){ try{ rec.start(); }catch(e){} }
+}
+
+function stopRec(errType){
+  recActive=false; recording=false;
+  clearInterval(recTimer);
+  if(rec){ try{ rec.stop(); }catch(e){} }
+  document.getElementById('rec-btn').classList.remove('on');
+  document.getElementById('rec-hint').style.display='none';
+  document.getElementById('rec-pulse').style.display='none';
+  document.getElementById('rec-timer').style.display='none';
+  document.getElementById('live-box').style.display='none';
+  animWave(false);
+  var text = (base+sessionFin).trim();
+  showSave(text, errType);
+}
+
+function showSave(text, errType){
+  var ss = document.getElementById('save-section');
+  ss.style.display='flex';
+  document.getElementById('manual-area').value='';
+  document.getElementById('title-input').value='';
+
+  var eb = document.getElementById('err-box');
+  if(errType==='https'){
+    document.getElementById('err-title').textContent='⚠ HTTPS REQUIRED FOR MIC';
+    document.getElementById('err-msg').textContent='Mic only works on HTTPS. Type your note manually below.';
+    eb.style.display='block';
+  } else if(errType==='permission'){
+    document.getElementById('err-title').textContent='⚠ MIC PERMISSION DENIED';
+    document.getElementById('err-msg').textContent='Tap 🔒 in Chrome → Site settings → allow Microphone → refresh.';
+    eb.style.display='block';
+  } else {
+    eb.style.display='none';
+  }
+
+  var tb = document.getElementById('saved-transcript');
+  if(text){
+    document.getElementById('saved-text').textContent=text;
+    document.getElementById('manual-label').textContent='ADD / EDIT CONTENT';
+    document.getElementById('manual-area').placeholder='Add more text…';
+    tb.style.display='block';
+  } else {
+    document.getElementById('manual-label').textContent='TYPE YOUR NOTE';
+    document.getElementById('manual-area').placeholder='Type your note here…';
+    tb.style.display='none';
+  }
+  updateSaveBtn();
+}
+
+function updateSaveBtn(){
+  var t=(base+sessionFin).trim();
+  var m=document.getElementById('manual-area').value.trim();
+  document.getElementById('save-btn').disabled=!(t||m);
+}
+
+function saveNote(){
+  var trans=(base+sessionFin).trim();
+  var manual=document.getElementById('manual-area').value.trim();
+  var text=trans+(trans&&manual?'\n':'')+manual;
+  if(!text) return;
+  var title=document.getElementById('title-input').value.trim()||('Note '+new Date().toLocaleDateString('en-GB'));
+  var n={id:Date.now(),title:title,text:text,duration:elapsed,createdAt:new Date().toISOString()};
+  notes.unshift(n);
+  save(); renderList(); updateUI();
+  document.getElementById('save-section').style.display='none';
+  document.getElementById('manual-btn').style.display='block';
+  base=''; sessionFin='';
+  if(driveOn) syncDrive();
+  toast('Saved: '+title);
+  openNote(n.id); goTab('detail');
+}
+
+function discard(){
+  document.getElementById('save-section').style.display='none';
+  document.getElementById('manual-btn').style.display='block';
+  base=''; sessionFin='';
+}
+
+function openManual(){ showSave('',''); }
+
+/* Notes List */
+function renderList(){
+  var list=document.getElementById('list');
+  list.querySelectorAll('.ni').forEach(function(el){ el.remove(); });
+  var empty=document.getElementById('list-empty');
+  if(!notes.length){ empty.style.display='block'; return; }
+  empty.style.display='none';
+  notes.forEach(function(n){
+    var d=document.createElement('div');
+    d.className='ni'+(activeId===n.id?' on':'');
+    d.dataset.id=n.id;
+    var t=document.createElement('div'); t.className='ni-title'; t.textContent=n.title;
+    var dt=document.createElement('div'); dt.className='ni-date'; dt.textContent=fmtDate(n.createdAt);
+    var p=document.createElement('div'); p.className='ni-preview'; p.textContent=n.text;
+    var dr=document.createElement('div'); dr.className='ni-dur'; dr.textContent='⏱ '+fmt(n.duration||0);
+    d.appendChild(t); d.appendChild(dt); d.appendChild(p); d.appendChild(dr);
+    d.onclick=function(){ openNote(n.id); goTab('detail'); };
+    list.appendChild(d);
+  });
+}
+
+/* Detail */
+function openNote(id){
+  activeId=id; editing=false;
+  document.querySelectorAll('.ni').forEach(function(el){ el.classList.toggle('on',el.dataset.id==id); });
+  renderDetail();
+}
+
+function renderDetail(){
+  var n=notes.find(function(x){ return x.id===activeId; });
+  var w=document.getElementById('d-wrap');
+  if(!n){
+    w.innerHTML='';
+    var empty=document.createElement('div');
+    empty.id='d-empty';
+    var ico=document.createElement('span'); ico.style.fontSize='40px'; ico.textContent='🎙';
+    var lbl=document.createElement('span'); lbl.textContent='SELECT A NOTE';
+    empty.appendChild(ico); empty.appendChild(lbl);
+    w.appendChild(empty);
+    return;
+  }
+  w.innerHTML='';
+
+  var titleEl=document.createElement('div'); titleEl.id='d-title'; titleEl.textContent=n.title;
+  var metaEl=document.createElement('div'); metaEl.id='d-meta'; metaEl.textContent=fmtDate(n.createdAt)+' · '+fmt(n.duration||0);
+  var body=document.createElement('div'); body.id='d-body';
+  var textEl=document.createElement('div'); textEl.id='d-text'; textEl.textContent=n.text;
+  textEl.style.display=editing?'none':'block';
+  var editEl=document.createElement('textarea'); editEl.id='d-edit'; editEl.value=n.text;
+  editEl.style.display=editing?'block':'none';
+  body.appendChild(textEl); body.appendChild(editEl);
+
+  var btns=document.createElement('div'); btns.id='d-btns'; btns.className='btn-row';
+  w.appendChild(titleEl); w.appendChild(metaEl); w.appendChild(body); w.appendChild(btns);
+  renderDetailBtns();
+}
+
+function renderDetailBtns(){
+  var btns=document.getElementById('d-btns');
+  btns.innerHTML='';
+  function mk(label,cls,fn){
+    var b=document.createElement('button');
+    b.className='btn'+' '+cls;
+    b.textContent=label;
+    b.onclick=fn;
+    btns.appendChild(b);
+  }
+  if(editing){
+    mk('Save','acc',function(){
+      var t=document.getElementById('d-edit').value;
+      notes=notes.map(function(x){ return x.id===activeId?Object.assign({},x,{text:t}):x; });
+      save(); editing=false; renderDetail(); renderList();
+      if(driveOn) syncDrive();
+      toast('Saved ✓');
+    });
+    mk('Cancel','',function(){ editing=false; renderDetail(); });
+  } else {
+    mk('Edit','',function(){ editing=true; renderDetail(); setTimeout(function(){ var e=document.getElementById('d-edit'); if(e) e.focus(); },50); });
+    mk('Copy','',function(){
+      var n=notes.find(function(x){ return x.id===activeId; });
+      if(n) navigator.clipboard.writeText(n.text).then(function(){ toast('Copied ✓'); }).catch(function(){ toast('Copy failed'); });
+    });
+    mk('Share ↗','grn',function(){
+      var n=notes.find(function(x){ return x.id===activeId; });
+      if(!n) return;
+      if(navigator.share) navigator.share({title:n.title,text:n.title+'\n'+fmtDate(n.createdAt)+'\n\n'+n.text}).catch(function(){});
+      else navigator.clipboard.writeText(n.text).then(function(){ toast('Copied ✓'); });
+    });
+    mk('Delete','red',function(){
+      notes=notes.filter(function(x){ return x.id!==activeId; });
+      activeId=null; save(); renderList(); renderDetail(); updateUI();
+      if(driveOn) syncDrive();
+      goTab('notes');
+    });
+  }
+}
+
+/* Export */
+function showExport(){
+  modal('EXPORT NOTES','Download all '+notes.length+' note'+(notes.length!==1?'s':'')+' to your device.',[
+    {label:'Download .txt',acc:true,fn:function(){ closeModal(); dlFile('voicenotes.txt', notes.map(function(n){ return '=== '+n.title+' ===\n'+fmtDate(n.createdAt)+' | '+fmt(n.duration||0)+'\n\n'+n.text; }).join('\n\n---\n\n'), 'text/plain'); }},
+    {label:'Download .json',fn:function(){ closeModal(); dlFile('voicenotes.json',JSON.stringify(notes,null,2),'application/json'); }},
+    {label:'Cancel',fn:closeModal}
+  ]);
+}
+function dlFile(name,content,type){
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type:type}));
+  a.download=name; a.click();
+}
+
+/* Drive */
+function driveClick(){
+  if(driveOn){ syncDrive(); return; }
+  var saved=localStorage.getItem('vn-gcid')||'';
+  modal('GOOGLE DRIVE SYNC',
+    'Notes saved to private App Data in your Drive.\n\nSetup:\n1. console.cloud.google.com\n2. Create project\n3. APIs & Services > Credentials\n4. Create OAuth 2.0 Client ID (Web app)\n5. Add your GitHub Pages URL to Authorised JS origins\n6. Enable Google Drive API\n7. Paste Client ID below',
+    [
+      {label:'Connect',acc:true,fn:function(){
+        var cid=document.getElementById('modal-input').value.trim();
+        if(!cid){ toast('Enter a Client ID first'); return; }
+        localStorage.setItem('vn-gcid',cid);
+        closeModal();
+        connectDrive(cid);
+      }},
+      {label:'Cancel',fn:closeModal}
+    ],
+    saved
+  );
+}
+
+function connectDrive(clientId){
+  if(!window.google||!window.google.accounts){ toast('Google library loading, try again'); return; }
+  var tc=google.accounts.oauth2.initTokenClient({
+    client_id:clientId,
+    scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:function(resp){
+      if(resp.error){ toast('Auth error: '+resp.error); return; }
+      driveToken=resp.access_token;
+      driveOn=true;
+      document.getElementById('drive-dot').classList.add('on');
+      document.getElementById('drive-btn').className='tbtn green';
+      document.getElementById('drive-btn').textContent='Sync';
+      toast('Drive connected ✓');
+      loadFromDrive();
+    }
+  });
+  tc.requestAccessToken();
+}
+
+function loadFromDrive(){
+  fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27voicenotes-backup.json%27&fields=files(id)',{headers:{Authorization:'Bearer '+driveToken}})
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    var f=d.files&&d.files[0]?d.files[0]:null;
+    if(f){
+      driveFileId=f.id; localStorage.setItem('vn-dfid',f.id);
+      return fetch('https://www.googleapis.com/drive/v3/files/'+f.id+'?alt=media',{headers:{Authorization:'Bearer '+driveToken}}).then(function(r){ return r.json(); });
+    }
+    return null;
+  })
+  .then(function(remote){
+    if(remote&&Array.isArray(remote)&&remote.length){ notes=remote; save(); renderList(); updateUI(); toast('Loaded '+remote.length+' notes ✓'); }
+    else syncDrive();
+  })
+  .catch(function(){ toast('Connected but could not load backup'); });
+}
+
+function syncDrive(){
+  if(!driveToken) return;
+  var meta={name:'voicenotes-backup.json',mimeType:'application/json'};
+  if(!driveFileId) meta.parents=['appDataFolder'];
+  var fd=new FormData();
+  fd.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
+  fd.append('file',new Blob([JSON.stringify(notes)],{type:'application/json'}));
+  var url=driveFileId
+    ?'https://www.googleapis.com/upload/drive/v3/files/'+driveFileId+'?uploadType=multipart'
+    :'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  fetch(url,{method:driveFileId?'PATCH':'POST',headers:{Authorization:'Bearer '+driveToken},body:fd})
+  .then(function(r){ return r.json(); })
+  .then(function(d){ if(d.id){ driveFileId=d.id; localStorage.setItem('vn-dfid',d.id); } toast('Saved to Drive ✓'); })
+  .catch(function(){ toast('Drive sync failed'); });
+}
+
+/* Modal */
+function modal(title,body,btns,inputVal){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').textContent=body;
+  var inp=document.getElementById('modal-input');
+  if(inputVal!==undefined){ inp.style.display='block'; inp.value=inputVal||''; inp.placeholder='Paste OAuth Client ID here'; }
+  else inp.style.display='none';
+  var mb=document.getElementById('modal-btns'); mb.innerHTML='';
+  btns.forEach(function(b){
+    var el=document.createElement('button');
+    el.className='btn'+(b.acc?' acc':'')+' lg';
+    el.textContent=b.label;
+    el.onclick=b.fn;
+    mb.appendChild(el);
+  });
+  document.getElementById('overlay').classList.add('on');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
+</script>
+</body>
+</html>
