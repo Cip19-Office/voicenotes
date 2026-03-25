@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="theme-color" content="#0a0a0f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="SpeakerNotes"/>
+<title>SpeakerNotes</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0a0a0f;color:#e0e0e0;font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent}
+input,textarea,button{font-family:inherit;-webkit-appearance:none;appearance:none}
+input:focus,textarea:focus{outline:none}
+textarea{resize:none}
+button{cursor:pointer;border:none;background:none;-webkit-tap-highlight-color:transparent}
+
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* Header */
+#header{display:flex;align-items:center;padding:0 14px;height:52px;border-bottom:1px solid #1a1a20;flex-shrink:0;gap:8px}
+#header h1{font-size:17px;font-weight:900;letter-spacing:-1px;color:#fff;text-transform:uppercase}
+#header .sp{flex:1}
+#note-count{font-size:10px;color:#383838}
+.tbtn{padding:5px 10px;background:#1a1a24;color:#666;border:1px solid #252535;border-radius:7px;font-size:10px;letter-spacing:.5px}
+
+/* Tabs */
+#tabbar{display:flex;height:56px;border-top:1px solid #1a1a20;background:#0d0d16;flex-shrink:0}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#444;font-size:9px;letter-spacing:1px;border:none;background:none}
+.tab.on{color:#7c6af7}
+.tab-icon{font-size:20px;line-height:1}
+
+/* Panels */
+#panels{flex:1;overflow:hidden;position:relative}
+.panel{position:absolute;inset:0;overflow-y:auto;display:none;flex-direction:column;padding:16px 20px 20px}
+.panel.on{display:flex}
+#notes-panel,#detail-panel{padding:0}
+
+/* API key banner */
+#api-banner{background:#120f2a;border:1px solid #3a2a7a;border-radius:10px;padding:14px;margin-bottom:16px;display:none}
+#api-banner p{font-size:12px;color:#8878cc;line-height:1.7;margin-bottom:10px}
+#api-key-input{width:100%;background:#0d0d1a;border:1px solid #2a2050;border-radius:8px;padding:10px 12px;color:#e0e0e0;font-size:12px;margin-bottom:10px}
+#api-key-input::placeholder{color:#443366}
+
+/* Rec button */
+#rec-center{display:flex;flex-direction:column;align-items:center;padding:16px 0}
+#rec-btn{width:84px;height:84px;border-radius:50%;background:#1a1a24;border:3px solid #2a2a40;display:flex;align-items:center;justify-content:center;transition:all .25s;flex-shrink:0}
+#rec-btn.on{background:#7c6af7;border-color:#a090ff;box-shadow:0 0 40px rgba(124,106,247,.4)}
+#rec-btn.processing{background:#1a2030;border-color:#3060a0;box-shadow:0 0 20px rgba(60,120,200,.3)}
+#dot{width:28px;height:28px;border-radius:50%;background:#7c6af7}
+#sq{width:26px;height:26px;border-radius:4px;background:#fff;display:none}
+#spin{width:28px;height:28px;border-radius:50%;border:3px solid #3060a0;border-top-color:#60a0e0;display:none;animation:spin 1s linear infinite}
+#rec-btn.on #dot{display:none}
+#rec-btn.on #sq{display:block}
+#rec-btn.processing #dot{display:none}
+#rec-btn.processing #spin{display:block}
+#rec-info{margin-top:14px;height:18px;display:flex;align-items:center;gap:8px}
+#rec-hint{font-size:10px;color:#3a3a5a;letter-spacing:2px}
+#rec-timer{font-size:13px;color:#7c6af7;letter-spacing:1px;display:none}
+#rec-pulse{width:7px;height:7px;border-radius:50%;background:#7c6af7;display:none;animation:pulse 1s infinite}
+
+/* Waveform */
+#waveform{display:flex;align-items:center;gap:3px;height:40px;margin-top:10px}
+.bar{width:3px;border-radius:2px;background:#222235;height:5px;transition:background .3s}
+.bar.on{background:#7c6af7}
+
+/* Status box */
+#status-box{background:#0f0f1e;border:1px solid #1e1e35;border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:#666;min-height:44px;display:flex;align-items:center;gap:8px}
+#status-icon{font-size:16px;flex-shrink:0}
+#status-text{line-height:1.5}
+
+/* Progress bar */
+#progress-wrap{height:3px;background:#1a1a2a;border-radius:2px;margin-bottom:12px;display:none}
+#progress-bar{height:3px;background:#7c6af7;border-radius:2px;width:0%;transition:width .5s}
+
+/* Buttons */
+.btn{padding:8px 14px;background:#1a1a24;color:#888;border:1px solid #252535;border-radius:8px;font-size:11px;letter-spacing:.5px;transition:all .15s;white-space:nowrap}
+.btn.acc{background:#7c6af7;color:#fff;border-color:#a090ff}
+.btn.acc:disabled{background:#1a1a24;color:#3a3a5a;border-color:#252535}
+.btn.red{background:#200a0a;color:#d55;border-color:#3d1111}
+.btn.grn{background:#091a15;color:#3db882;border-color:#193d2a}
+.btn.lg{padding:10px 16px;font-size:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Notes list */
+#notes-header{padding:16px 20px 8px;font-size:10px;color:#383848;letter-spacing:2px;flex-shrink:0}
+#list{flex:1;overflow-y:auto}
+.ni{padding:14px 20px;cursor:pointer;border-left:2px solid transparent;border-bottom:1px solid #111118;transition:all .15s}
+.ni.on{background:#111120;border-left-color:#7c6af7}
+.ni-num{font-size:9px;color:#443366;letter-spacing:1px;margin-bottom:3px}
+.ni-title{font-size:13px;font-weight:600;color:#bbb;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ni.on .ni-title{color:#fff}
+.ni-date{font-size:10px;color:#443355;margin-bottom:4px}
+.ni-speakers{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.spk-badge{font-size:9px;padding:2px 6px;border-radius:10px;letter-spacing:.5px}
+.ni-preview{font-size:11px;color:#445;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
+#list-empty{padding:32px 20px;font-size:12px;color:#333;line-height:1.8;text-align:center}
+
+/* Detail */
+#detail-panel{padding:16px 20px 80px;overflow-y:auto}
+#back-btn{background:none;border:none;color:#555;font-size:12px;letter-spacing:1px;margin-bottom:16px;padding:0;display:block}
+#d-title{font-size:18px;font-weight:900;color:#fff;letter-spacing:-.5px;margin-bottom:4px;text-transform:uppercase;word-break:break-word}
+#d-meta{font-size:10px;color:#443355;margin-bottom:12px}
+#d-speakers-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+#d-body{background:#0f0f1e;border:1px solid #1e1e35;border-radius:12px;padding:16px;margin-bottom:14px;min-height:120px}
+.spk-block{margin-bottom:16px}
+.spk-block:last-child{margin-bottom:0}
+.spk-label{font-size:10px;font-weight:700;letter-spacing:1.5px;margin-bottom:6px;padding:3px 8px;border-radius:4px;display:inline-block}
+.spk-text{font-size:13px;line-height:1.85;color:#c8c8d8;white-space:pre-wrap;word-break:break-word}
+#d-raw{font-size:13px;line-height:1.85;color:#c8c8d8;white-space:pre-wrap;word-break:break-word;display:none}
+#d-edit{width:100%;min-height:180px;background:transparent;border:none;color:#d0d0e0;font-size:13px;font-family:inherit;line-height:1.8;padding:0;display:none;outline:none;resize:none}
+#d-btns{display:flex;gap:8px;flex-wrap:wrap}
+#d-empty{display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:#252535;font-size:10px;letter-spacing:2px;padding-top:80px}
+
+/* Toast */
+#toast{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);background:#1a1a2a;border:1px solid #2a2a40;border-radius:8px;padding:10px 18px;font-size:12px;color:#ccc;z-index:300;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s}
+#toast.on{opacity:1}
+
+/* Modal */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+#overlay.on{display:flex}
+#modal{background:#111120;border:1px solid #252535;border-radius:14px;padding:24px;width:100%;max-width:400px;max-height:85vh;overflow-y:auto}
+#modal h3{font-size:15px;font-weight:900;color:#fff;margin-bottom:8px;text-transform:uppercase;letter-spacing:-.5px}
+#modal p{font-size:12px;color:#666;line-height:1.7;margin-bottom:14px;white-space:pre-wrap}
+#modal-input{width:100%;background:#0d0d1a;border:1px solid #252535;border-radius:8px;padding:10px 12px;color:#e0e0e0;font-size:12px;margin-bottom:12px;display:none}
+#modal-input::placeholder{color:#443366}
+#modal-btns{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Speaker colours - 8 speakers max */
+.c0{background:#1a1040;color:#a090ff;border:1px solid #3a2a80}
+.c1{background:#0a1a10;color:#40c080;border:1px solid #1a4a28}
+.c2{background:#1a0a10;color:#e06080;border:1px solid #4a1828}
+.c3{background:#1a1000;color:#e0a030;border:1px solid #4a3000}
+.c4{background:#001a1a;color:#30c0c0;border:1px solid #004a4a}
+.c5{background:#100a1a;color:#c060e0;border:1px solid #380a50}
+.c6{background:#0a1a00;color:#80c030;border:1px solid #284a00}
+.c7{background:#1a0a00;color:#e07030;border:1px solid #4a1a00}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes w0{0%{height:8px}100%{height:32px}}
+@keyframes w1{0%{height:12px}100%{height:22px}}
+@keyframes w2{0%{height:6px}100%{height:38px}}
+@keyframes w3{0%{height:14px}100%{height:18px}}
+@keyframes w4{0%{height:10px}100%{height:28px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>SpeakerNotes</h1>
+    <div class="sp"></div>
+    <button class="tbtn" onclick="showApiSetup()">API Key</button>
+    <button class="tbtn" onclick="showExport()">Export</button>
+    <span id="note-count">0 notes</span>
+  </div>
+
+  <div id="panels">
+    <!-- Record Panel -->
+    <div class="panel on" id="rec-panel">
+
+      <div id="api-banner">
+        <p>To identify speakers, you need a free AssemblyAI API key.<br>
+        1. Go to assemblyai.com and sign up free<br>
+        2. Copy your API key from the dashboard<br>
+        3. Paste it below and tap Save</p>
+        <input id="api-key-input" type="text" placeholder="Paste AssemblyAI API key here"/>
+        <div class="btn-row">
+          <button class="btn acc" onclick="saveApiKey()">Save Key</button>
+          <button class="btn" onclick="dismissBanner()">Dismiss</button>
+        </div>
+      </div>
+
+      <div id="rec-center">
+        <div id="rec-btn" onclick="toggleRec()">
+          <div id="dot"></div>
+          <div id="sq"></div>
+          <div id="spin"></div>
+        </div>
+        <div id="rec-info">
+          <div id="rec-pulse"></div>
+          <span id="rec-timer">00:00</span>
+          <span id="rec-hint">TAP TO RECORD</span>
+        </div>
+        <div id="waveform"></div>
+      </div>
+
+      <div id="progress-wrap"><div id="progress-bar"></div></div>
+      <div id="status-box"><span id="status-icon">🎙</span><span id="status-text">Ready to record. Multiple speakers will be identified automatically.</span></div>
+
+      <div style="margin-top:auto;padding-top:16px">
+        <div style="font-size:10px;color:#443366;letter-spacing:2px;margin-bottom:10px;text-align:center">OR UPLOAD A RECORDING</div>
+        <label id="upload-label" style="display:flex;align-items:center;justify-content:center;gap:10px;background:#111120;border:1px dashed #2a2050;border-radius:10px;padding:16px;cursor:pointer;font-size:12px;color:#7c6af7;letter-spacing:.5px">
+          <span style="font-size:22px">📁</span>
+          <span id="upload-txt">Tap to upload audio file</span>
+          <input type="file" id="file-input" accept="audio/*,video/mp4,video/webm" style="display:none" onchange="handleFileUpload(this)"/>
+        </label>
+        <div style="font-size:10px;color:#333344;margin-top:8px;text-align:center">Supports MP3, M4A, WAV, MP4, WebM — any audio from your recorder app</div>
+      </div>
+
+    </div>
+
+    <!-- Notes List Panel -->
+    <div class="panel" id="notes-panel">
+      <div id="notes-header">ALL NOTES</div>
+      <div id="list"><div id="list-empty">No notes yet.<br>Tap the mic to record.</div></div>
+    </div>
+
+    <!-- Detail Panel -->
+    <div class="panel" id="detail-panel">
+      <button id="back-btn" onclick="goTab('notes')">← BACK</button>
+      <div id="d-wrap">
+        <div id="d-empty"><span style="font-size:40px">🎙</span><span>SELECT A NOTE</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tabbar">
+    <button class="tab on" id="t-record" onclick="goTab('record')"><span class="tab-icon">⏺</span><span>REC</span></button>
+    <button class="tab" id="t-notes" onclick="goTab('notes')"><span class="tab-icon">📋</span><span>NOTES</span></button>
+    <button class="tab" id="t-detail" onclick="goTab('detail')"><span class="tab-icon">📄</span><span>NOTE</span></button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="overlay" onclick="closeModal()">
+  <div id="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title"></h3>
+    <p id="modal-body"></p>
+    <input id="modal-input" type="text"/>
+    <div id="modal-btns"></div>
+  </div>
+</div>
+
+<script>
+var notes = [], activeId = null;
+var recording = false, mediaRecorder = null, audioChunks = [];
+var elapsed = 0, recTimer = null;
+var toastT = null, editing = false;
+var apiKey = localStorage.getItem('sn-apikey') || '';
+
+try { notes = JSON.parse(localStorage.getItem('sn-notes') || '[]'); } catch(e) {}
+
+/* Init */
+buildWave();
+renderList();
+updateUI();
+if(!apiKey) document.getElementById('api-banner').style.display = 'block';
+
+function buildWave(){
+  var wf = document.getElementById('waveform');
+  for(var i=0;i<24;i++){
+    var b=document.createElement('div'); b.className='bar'; b.id='b'+i;
+    wf.appendChild(b);
+  }
+}
+function animWave(on){
+  for(var i=0;i<24;i++){
+    var b=document.getElementById('b'+i); if(!b) continue;
+    if(on){ b.classList.add('on'); b.style.animation='w'+(i%5)+' '+(0.6+(i%4)*0.15)+'s ease-in-out infinite alternate'; b.style.animationDelay=(i*0.05).toFixed(2)+'s'; }
+    else { b.classList.remove('on'); b.style.animation='none'; b.style.height='5px'; }
+  }
+}
+function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('on'); },2800); }
+function fmt(ms){ var s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60); if(h>0) return h+':'+pad(m%60)+':'+pad(s%60); return pad(m)+':'+pad(s%60); }
+function pad(n){ return ('0'+n).slice(-2); }
+function fmtDate(iso){ var d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function save(){ localStorage.setItem('sn-notes', JSON.stringify(notes)); }
+function updateUI(){ var c=notes.length; document.getElementById('note-count').textContent=c+' note'+(c!==1?'s':''); }
+function setStatus(icon, msg){ document.getElementById('status-icon').textContent=icon; document.getElementById('status-text').textContent=msg; }
+function setProgress(pct){ var w=document.getElementById('progress-wrap'); var b=document.getElementById('progress-bar'); if(pct>0){ w.style.display='block'; b.style.width=pct+'%'; } else { w.style.display='none'; b.style.width='0%'; } }
+
+/* API Key */
+function saveApiKey(){
+  var k=document.getElementById('api-key-input').value.trim();
+  if(!k){ toast('Paste your API key first'); return; }
+  apiKey=k; localStorage.setItem('sn-apikey',k);
+  document.getElementById('api-banner').style.display='none';
+  setStatus('✅','API key saved. Ready to record.');
+  toast('API key saved ✓');
+}
+function dismissBanner(){ document.getElementById('api-banner').style.display='none'; }
+function showApiSetup(){
+  document.getElementById('api-key-input').value=apiKey||'';
+  document.getElementById('api-banner').style.display='block';
+  goTab('record');
+}
+
+/* Tabs */
+function goTab(tab){
+  ['record','notes','detail'].forEach(function(t){
+    document.getElementById((t==='record'?'rec':t)+'-panel').classList.remove('on');
+    document.getElementById('t-'+t).classList.remove('on');
+  });
+  document.getElementById((tab==='record'?'rec':tab)+'-panel').classList.add('on');
+  document.getElementById('t-'+tab).classList.add('on');
+}
+
+/* Recording */
+function toggleRec(){
+  if(recording) stopRec();
+  else startRec();
+}
+
+function startRec(){
+  if(!apiKey){ document.getElementById('api-banner').style.display='block'; toast('Add your API key first'); return; }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    audioChunks=[];
+    var options = {};
+    if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType='audio/webm;codecs=opus';
+    else if(MediaRecorder.isTypeSupported('audio/webm')) options.mimeType='audio/webm';
+    mediaRecorder = new MediaRecorder(stream, options);
+    mediaRecorder.ondataavailable = function(e){ if(e.data.size>0) audioChunks.push(e.data); };
+    mediaRecorder.start(1000);
+    recording=true; elapsed=0;
+    document.getElementById('rec-btn').className='on';
+    document.getElementById('rec-hint').style.display='none';
+    document.getElementById('rec-pulse').style.display='block';
+    document.getElementById('rec-timer').style.display='block';
+    animWave(true);
+    recTimer=setInterval(function(){ elapsed+=500; document.getElementById('rec-timer').textContent=fmt(elapsed); },500);
+    setStatus('🔴','Recording… speak naturally. Multiple speakers will be detected.');
+    setProgress(0);
+  }).catch(function(err){
+    setStatus('⚠️','Mic access denied. Tap 🔒 in Chrome → Site settings → allow Microphone.');
+  });
+}
+
+function stopRec(){
+  if(!mediaRecorder) return;
+  recording=false;
+  clearInterval(recTimer);
+  document.getElementById('rec-btn').className='processing';
+  document.getElementById('rec-hint').style.display='none';
+  document.getElementById('rec-pulse').style.display='none';
+  document.getElementById('rec-timer').style.display='none';
+  animWave(false);
+
+  var dur=elapsed;
+  mediaRecorder.onstop=function(){
+    var mimeType=mediaRecorder.mimeType||'audio/webm';
+    var blob=new Blob(audioChunks,{type:mimeType});
+    mediaRecorder.stream.getTracks().forEach(function(t){ t.stop(); });
+    transcribe(blob, dur);
+  };
+  mediaRecorder.stop();
+  setStatus('⏳','Uploading audio…');
+  setProgress(10);
+}
+
+/* File Upload Handler */
+function handleFileUpload(input){
+  var file = input.files[0];
+  if(!file) return;
+  if(!apiKey){ document.getElementById('api-banner').style.display='block'; toast('Add your API key first'); return; }
+  document.getElementById('upload-txt').textContent = file.name;
+  var sizeMB = (file.size/1024/1024).toFixed(1);
+  setStatus('📁','File selected: '+file.name+' ('+sizeMB+' MB). Processing…');
+  setProgress(5);
+  // Use file duration estimate (we don't know exact duration without decoding)
+  var estimatedDur = 0;
+  transcribeFile(file, estimatedDur);
+}
+
+function transcribeFile(file, dur){
+  setStatus('⬆️','Uploading audio file to AssemblyAI…');
+  setProgress(15);
+  fetch('https://api.assemblyai.com/v2/upload',{
+    method:'POST',
+    headers:{'authorization':apiKey,'content-type':'application/octet-stream'},
+    body:file
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d.upload_url){ throw new Error('Upload failed: '+(d.error||'unknown')); }
+    setStatus('🔄','File uploaded. Starting speaker identification…');
+    setProgress(35);
+    return submitTranscript(d.upload_url);
+  })
+  .then(function(d){
+    if(!d.id){ throw new Error('Request failed: '+(d.error||'unknown')); }
+    setProgress(45);
+    return pollTranscript(d.id);
+  })
+  .then(function(result){
+    setProgress(100);
+    // Reset file input
+    document.getElementById('file-input').value='';
+    document.getElementById('upload-txt').textContent='Tap to upload audio file';
+    processResult(result, dur);
+  })
+  .catch(function(err){
+    setProgress(0);
+    document.getElementById('file-input').value='';
+    document.getElementById('upload-txt').textContent='Tap to upload audio file';
+    setStatus('❌','Error: '+err.message);
+    toast('Upload failed');
+  });
+}
+
+/* AssemblyAI Transcription */
+function transcribe(blob, dur){
+  setStatus('⬆️','Uploading audio to AssemblyAI…');
+  setProgress(20);
+
+  // Step 1: Upload audio
+  fetch('https://api.assemblyai.com/v2/upload', {
+    method:'POST',
+    headers:{'authorization':apiKey,'content-type':'application/octet-stream'},
+    body:blob
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d.upload_url){ throw new Error('Upload failed: '+(d.error||'unknown')); }
+    setStatus('🔄','Audio uploaded. Starting transcription…');
+    setProgress(40);
+    return submitTranscript(d.upload_url);
+  })
+  .then(function(d){
+    if(!d.id){ throw new Error('Transcript request failed: '+(d.error||'unknown')); }
+    setProgress(50);
+    return pollTranscript(d.id);
+  })
+  .then(function(result){
+    setProgress(100);
+    processResult(result, dur);
+  })
+  .catch(function(err){
+    document.getElementById('rec-btn').className='';
+    setProgress(0);
+    setStatus('❌','Error: '+err.message+'. Check your API key and try again.');
+    toast('Transcription failed');
+  });
+}
+
+function submitTranscript(audioUrl){
+  return fetch('https://api.assemblyai.com/v2/transcript',{
+    method:'POST',
+    headers:{'authorization':apiKey,'content-type':'application/json'},
+    body:JSON.stringify({audio_url:audioUrl, speech_models:["universal-3-pro","universal-2"], speaker_labels:true})
+  }).then(function(r){ return r.json(); });
+}
+
+function pollTranscript(id){
+  var pollCount=0;
+  return new Promise(function(resolve,reject){
+    function poll(){
+      pollCount++;
+      var pct=50+Math.min(pollCount*3,45);
+      setProgress(pct);
+      setStatus('🔄','Identifying speakers… ('+(pollCount*3)+'s)');
+      fetch('https://api.assemblyai.com/v2/transcript/'+id,{
+        headers:{'authorization':apiKey}
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status==='completed') resolve(d);
+        else if(d.status==='error') reject(new Error(d.error||'Transcription error'));
+        else setTimeout(poll, 3000);
+      })
+      .catch(reject);
+    }
+    setTimeout(poll, 3000);
+  });
+}
+
+/* Speaker colours */
+var COLORS = ['c0','c1','c2','c3','c4','c5','c6','c7'];
+var SPEAKER_NAMES = ['Speaker A','Speaker B','Speaker C','Speaker D','Speaker E','Speaker F','Speaker G','Speaker H'];
+
+function processResult(result, dur){
+  document.getElementById('rec-btn').className='';
+  setProgress(0);
+
+  if(!result.utterances || result.utterances.length===0){
+    // Fallback: no speaker data, save plain transcript
+    var text=result.text||'(no speech detected)';
+    saveNoteData('Recording '+new Date().toLocaleDateString('en-GB'), text, [], dur, result);
+    setStatus('✅','Saved. No distinct speakers detected.');
+    return;
+  }
+
+  // Group utterances by speaker
+  var speakerSet={};
+  result.utterances.forEach(function(u){ speakerSet[u.speaker]=true; });
+  var speakers=Object.keys(speakerSet).sort();
+  var speakerColorMap={};
+  speakers.forEach(function(s,i){ speakerColorMap[s]=COLORS[i%COLORS.length]; });
+
+  // Build structured blocks
+  var blocks=[];
+  var current=null;
+  result.utterances.forEach(function(u){
+    if(current && current.speaker===u.speaker){
+      current.text+=' '+u.text;
+    } else {
+      if(current) blocks.push(current);
+      current={speaker:u.speaker, text:u.text, start:u.start};
+    }
+  });
+  if(current) blocks.push(current);
+
+  var speakerInfo=speakers.map(function(s,i){ return {id:s, name:SPEAKER_NAMES[i]||('Speaker '+s), color:COLORS[i%COLORS.length]}; });
+  var title='Recording '+new Date().toLocaleDateString('en-GB');
+  saveNoteData(title, result.text||'', speakerInfo, dur, {blocks:blocks, speakerColorMap:speakerColorMap});
+
+  var count=speakers.length;
+  setStatus('✅','Done! '+count+' speaker'+(count!==1?'s':'')+' identified.');
+  toast(count+' speaker'+(count!==1?'s':'')+' identified ✓');
+}
+
+function saveNoteData(title, rawText, speakers, dur, extra){
+  var n={
+    id:Date.now(),
+    title:title,
+    rawText:rawText,
+    speakers:speakers,
+    blocks:extra.blocks||[],
+    speakerColorMap:extra.speakerColorMap||{},
+    duration:dur,
+    createdAt:new Date().toISOString()
+  };
+  notes.unshift(n);
+  save(); renderList(); updateUI();
+  openNote(n.id); goTab('detail');
+}
+
+/* Notes List */
+function renderList(){
+  var list=document.getElementById('list');
+  list.querySelectorAll('.ni').forEach(function(el){ el.remove(); });
+  var empty=document.getElementById('list-empty');
+  if(!notes.length){ empty.style.display='block'; return; }
+  empty.style.display='none';
+  notes.forEach(function(n,idx){
+    var d=document.createElement('div');
+    d.className='ni'+(activeId===n.id?' on':'');
+    d.dataset.id=n.id;
+
+    var num=document.createElement('div'); num.className='ni-num'; num.textContent='NOTE #'+(notes.length-idx);
+    var t=document.createElement('div'); t.className='ni-title'; t.textContent=n.title;
+    var dt=document.createElement('div'); dt.className='ni-date'; dt.textContent=fmtDate(n.createdAt)+'  ·  ⏱ '+fmt(n.duration||0);
+
+    var sb=document.createElement('div'); sb.className='ni-speakers';
+    if(n.speakers&&n.speakers.length){
+      n.speakers.forEach(function(s){
+        var badge=document.createElement('span');
+        badge.className='spk-badge '+s.color;
+        badge.textContent=s.name;
+        sb.appendChild(badge);
+      });
+    } else {
+      var badge=document.createElement('span'); badge.className='spk-badge c0'; badge.textContent='1 Speaker';
+      sb.appendChild(badge);
+    }
+
+    var p=document.createElement('div'); p.className='ni-preview'; p.textContent=n.rawText||'';
+    d.appendChild(num); d.appendChild(t); d.appendChild(dt); d.appendChild(sb); d.appendChild(p);
+    d.onclick=function(){ openNote(n.id); goTab('detail'); };
+    list.appendChild(d);
+  });
+}
+
+/* Detail */
+function openNote(id){
+  activeId=id; editing=false;
+  document.querySelectorAll('.ni').forEach(function(el){ el.classList.toggle('on',el.dataset.id==id); });
+  renderDetail();
+}
+
+function renderDetail(){
+  var n=notes.find(function(x){ return x.id===activeId; });
+  var w=document.getElementById('d-wrap');
+  if(!n){
+    w.innerHTML='';
+    var empty=document.createElement('div'); empty.id='d-empty';
+    var ico=document.createElement('span'); ico.style.fontSize='40px'; ico.textContent='🎙';
+    var lbl=document.createElement('span'); lbl.textContent='SELECT A NOTE';
+    empty.appendChild(ico); empty.appendChild(lbl);
+    w.appendChild(empty);
+    return;
+  }
+  w.innerHTML='';
+
+  // Number + Title
+  var numEl=document.createElement('div'); numEl.style.cssText='font-size:9px;color:#443366;letter-spacing:1px;margin-bottom:4px'; numEl.textContent='NOTE #'+(notes.indexOf(n)<0?1:notes.length-notes.indexOf(n));
+  var titleEl=document.createElement('div'); titleEl.id='d-title'; titleEl.textContent=n.title;
+  var metaEl=document.createElement('div'); metaEl.id='d-meta'; metaEl.textContent=fmtDate(n.createdAt)+' · ⏱ '+fmt(n.duration||0);
+
+  // Speaker badges
+  var speakersRow=document.createElement('div'); speakersRow.id='d-speakers-row';
+  if(n.speakers&&n.speakers.length){
+    n.speakers.forEach(function(s){
+      var b=document.createElement('span'); b.className='spk-badge '+s.color; b.textContent=s.name;
+      speakersRow.appendChild(b);
+    });
+  }
+
+  // Body
+  var body=document.createElement('div'); body.id='d-body';
+
+  if(editing){
+    var editEl=document.createElement('textarea'); editEl.id='d-edit'; editEl.value=n.rawText||'';
+    body.appendChild(editEl);
+  } else if(n.blocks&&n.blocks.length){
+    // Speaker-labelled blocks
+    var speakerIndex={};
+    if(n.speakers) n.speakers.forEach(function(s){ speakerIndex[s.id]=s; });
+
+    n.blocks.forEach(function(bl){
+      var spkInfo=speakerIndex[bl.speaker];
+      var colorCls=n.speakerColorMap&&n.speakerColorMap[bl.speaker]?n.speakerColorMap[bl.speaker]:'c0';
+      var blk=document.createElement('div'); blk.className='spk-block';
+      var lbl=document.createElement('div'); lbl.className='spk-label '+colorCls;
+      lbl.textContent=spkInfo?spkInfo.name:('Speaker '+bl.speaker);
+      var txt=document.createElement('div'); txt.className='spk-text'; txt.textContent=bl.text;
+      blk.appendChild(lbl); blk.appendChild(txt);
+      body.appendChild(blk);
+    });
+  } else {
+    var rawEl=document.createElement('div'); rawEl.id='d-raw'; rawEl.style.display='block';
+    rawEl.textContent=n.rawText||'(empty)';
+    body.appendChild(rawEl);
+  }
+
+  var btns=document.createElement('div'); btns.id='d-btns'; btns.className='btn-row';
+
+  w.appendChild(numEl); w.appendChild(titleEl); w.appendChild(metaEl);
+  if(n.speakers&&n.speakers.length) w.appendChild(speakersRow);
+  w.appendChild(body); w.appendChild(btns);
+
+  renderDetailBtns(n);
+  if(editing) setTimeout(function(){ var e=document.getElementById('d-edit'); if(e) e.focus(); },50);
+}
+
+function renderDetailBtns(n){
+  var btns=document.getElementById('d-btns');
+  btns.innerHTML='';
+  function mk(label,cls,fn){ var b=document.createElement('button'); b.className='btn '+cls; b.textContent=label; b.onclick=fn; btns.appendChild(b); }
+  if(editing){
+    mk('Save','acc',function(){
+      var t=document.getElementById('d-edit').value;
+      notes=notes.map(function(x){ return x.id===activeId?Object.assign({},x,{rawText:t,blocks:[]}):x; });
+      save(); editing=false; renderDetail(); renderList(); toast('Saved ✓');
+    });
+    mk('Cancel','',function(){ editing=false; renderDetail(); });
+  } else {
+    mk('Edit','',function(){ editing=true; renderDetail(); });
+    mk('Copy','',function(){
+      var note=notes.find(function(x){ return x.id===activeId; });
+      if(!note) return;
+      var text='';
+      if(note.blocks&&note.blocks.length){
+        var si={};
+        if(note.speakers) note.speakers.forEach(function(s){ si[s.id]=s; });
+        text=note.blocks.map(function(b){ return (si[b.speaker]?si[b.speaker].name:('Speaker '+b.speaker))+': '+b.text; }).join('\n\n');
+      } else { text=note.rawText||''; }
+      navigator.clipboard.writeText(text).then(function(){ toast('Copied ✓'); }).catch(function(){ toast('Copy failed'); });
+    });
+    mk('Share ↗','grn',function(){
+      var note=notes.find(function(x){ return x.id===activeId; });
+      if(!note) return;
+      var text='';
+      if(note.blocks&&note.blocks.length){
+        var si={};
+        if(note.speakers) note.speakers.forEach(function(s){ si[s.id]=s; });
+        text=note.title+'\n'+fmtDate(note.createdAt)+'\n\n'+note.blocks.map(function(b){ return (si[b.speaker]?si[b.speaker].name:('Speaker '+b.speaker))+': '+b.text; }).join('\n\n');
+      } else { text=note.title+'\n'+fmtDate(note.createdAt)+'\n\n'+(note.rawText||''); }
+      if(navigator.share) navigator.share({title:note.title,text:text}).catch(function(){});
+      else navigator.clipboard.writeText(text).then(function(){ toast('Copied ✓'); });
+    });
+    mk('Delete','red',function(){
+      notes=notes.filter(function(x){ return x.id!==activeId; });
+      activeId=null; save(); renderList(); renderDetail(); updateUI(); goTab('notes');
+    });
+  }
+}
+
+/* Export */
+function showExport(){
+  modal('EXPORT NOTES','Download all '+notes.length+' note'+(notes.length!==1?'s':'')+' to your device.',[
+    {label:'Download .txt',acc:true,fn:function(){
+      closeModal();
+      var text=notes.map(function(n,i){
+        var header='=== NOTE #'+(notes.length-i)+': '+n.title+' ===\n'+fmtDate(n.createdAt)+' | ⏱ '+fmt(n.duration||0)+'\n\n';
+        if(n.blocks&&n.blocks.length){
+          var si={};
+          if(n.speakers) n.speakers.forEach(function(s){ si[s.id]=s; });
+          return header+n.blocks.map(function(b){ return '['+( si[b.speaker]?si[b.speaker].name:('Speaker '+b.speaker))+']: '+b.text; }).join('\n\n');
+        }
+        return header+(n.rawText||'');
+      }).join('\n\n'+'---'.repeat(10)+'\n\n');
+      dlFile('speakernotes.txt',text,'text/plain');
+    }},
+    {label:'Download .json',fn:function(){ closeModal(); dlFile('speakernotes.json',JSON.stringify(notes,null,2),'application/json'); }},
+    {label:'Cancel',fn:closeModal}
+  ]);
+}
+function dlFile(name,content,type){ var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:type})); a.download=name; a.click(); }
+
+/* Modal */
+function modal(title,body,btns,inputVal){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').textContent=body;
+  var inp=document.getElementById('modal-input');
+  if(inputVal!==undefined){ inp.style.display='block'; inp.value=inputVal||''; }
+  else inp.style.display='none';
+  var mb=document.getElementById('modal-btns'); mb.innerHTML='';
+  btns.forEach(function(b){ var el=document.createElement('button'); el.className='btn'+(b.acc?' acc':'')+' lg'; el.textContent=b.label; el.onclick=b.fn; mb.appendChild(el); });
+  document.getElementById('overlay').classList.add('on');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
+</script>
+</body>
+</html>
